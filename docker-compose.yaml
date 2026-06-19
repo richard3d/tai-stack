@@ -1,0 +1,105 @@
+name: ai-stack
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Uncomment the block below to enable GPU on Linux with Nvidia hardware.
+    # This requires installing the NVIDIA Container Toolkit.
+    # Note: Docker on Apple Silicon cannot access the GPU.
+    #
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ollama-init
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull llama3.2"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: litellm
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      - LITELLM_MASTER_KEY=sk-local
+    depends_on:
+      - ollama
+
+  anythingllm:
+    image: mintplexlabs/anythingllm:latest
+    container_name: anythingllm
+    ports:
+      - "3001:3001"
+    volumes:
+      - anythingllm-data:/app/server/storage
+    environment:
+      - LLM_PROVIDER=litellm
+      - LITE_LLM_MODEL_PREF=llama3.2
+      - LITE_LLM_API_KEY=sk-local
+      - LITE_LLM_BASE_PATH=http://litellm:4000
+      - STORAGE_DIR=/app/server/storage
+      # There is a known bug in the LiteLLM -> Ollama pipleine where tool calls come back
+      # as raw JSON text instead of structured `tool_calls` fields
+      - PROVIDER_DISABLE_NATIVE_TOOL_CALLING=litellm
+    depends_on:
+      - litellm
+  
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: pgvector
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ai-stack
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgvector/init-scripts:/docker-entrypoint-initdb.d
+      #- pgdata:/var/lib/postgresql/data
+  
+  file-watcher:
+    build:
+      context: ./file-watcher
+      dockerfile: Dockerfile
+    container_name: file-watcher
+    environment:
+      - WATCH_DIRECTORY=/app/docs
+    volumes:
+      - ./docs:/app/docs
+
+networks:
+  ai-net:
+    driver: bridge
+
+volumes:
+  ollama-data:
+  anythingllm-data:
+  file-watcher-docs:
