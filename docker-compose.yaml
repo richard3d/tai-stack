@@ -70,33 +70,6 @@ services:
       - PROVIDER_DISABLE_NATIVE_TOOL_CALLING=litellm
     depends_on:
       - litellm
-  
-  db:
-    image: pgvector/pgvector:pg17
-    container_name: pgvector
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: tai-stack
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./pgvector/init-scripts:/docker-entrypoint-initdb.d
-      # Uncomment if persistence between runs is desired
-      #- pgdata:/var/lib/postgresql/data
-  
-  rag:
-    build:
-      context: ./do-rag
-      dockerfile: Dockerfile
-    container_name: rag
-    environment:
-      - WATCH_DIRECTORY=/app/docs
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./docs:/app/docs
 
 networks:
   ai-net:
@@ -105,4 +78,3 @@ networks:
 volumes:
   ollama-data:
   anythingllm-data:
-  file-watcher-docs:
