@@ -1,4 +1,4 @@
-name: ai-stack
+name: tai-stack
 
 services:
   ollama:
@@ -34,7 +34,7 @@ services:
       - ollama-data:/root/.ollama
     environment:
       - OLLAMA_HOST=http://ollama:11434
-    entrypoint: ["/bin/sh", "-c", "ollama pull llama3.2"]
+    entrypoint: ["/bin/sh", "-c", "ollama pull llama3.2 && ollama pull nomic-embed-text"]
     depends_on:
       ollama:
         condition: service_healthy
@@ -78,20 +78,23 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: ai-stack
+      POSTGRES_DB: tai-stack
     ports:
       - "5432:5432"
     volumes:
       - ./pgvector/init-scripts:/docker-entrypoint-initdb.d
+      # Uncomment if persistence between runs is desired
       #- pgdata:/var/lib/postgresql/data
   
-  file-watcher:
+  rag:
     build:
-      context: ./file-watcher
+      context: ./do-rag
       dockerfile: Dockerfile
-    container_name: file-watcher
+    container_name: rag
     environment:
       - WATCH_DIRECTORY=/app/docs
+    ports:
+      - "8000:8000"
     volumes:
       - ./docs:/app/docs
 
